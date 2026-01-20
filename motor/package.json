@@ -1,0 +1,16 @@
+{
+  "name": "whatsapp-gateway-core",
+  "version": "1.0.0",
+  "description": "Microservicio de conexión Baileys para WhatsApp",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js"
+  },
+  "dependencies": {
+    "@whiskeysockets/baileys": "^7.0.0-rc.9",
+    "axios": "^1.6.2",
+    "body-parser": "^1.20.2",
+    "express": "^4.18.2",
+    "qrcode-terminal": "^0.12.0"
+  }
+}

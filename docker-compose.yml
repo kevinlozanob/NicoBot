@@ -1,0 +1,31 @@
+version: '3.8'
+
+services:
+  motor:
+    build: ./motor
+    container_name: NicklcsDevW_motor
+    restart: always
+    environment:
+      - PYTHON_URL=http://cerebro:8000/webhook
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./sesion_data:/app/auth_session
+    networks:
+      - red_bot
+
+  cerebro:
+    build: ./cerebro
+    container_name: NicklcsDevW_cerebro
+    restart: always
+    environment:
+      - GROQ_API_KEY=${GROQ_API_KEY}
+      - NODE_SERVICE_URL=http://motor:3000/send-message
+    ports:
+      - "8000:8000"
+    networks:
+      - red_bot
+
+networks:
+  red_bot:
+    driver: bridge
