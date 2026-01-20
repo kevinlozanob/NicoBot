@@ -20,6 +20,7 @@ services:
     restart: always
     environment:
       - GROQ_API_KEY=${GROQ_API_KEY}
+      - MONGO_URI=${MONGO_URI}
       - NODE_SERVICE_URL=http://motor:3000/send-message
     ports:
       - "8000:8000"
