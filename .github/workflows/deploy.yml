@@ -13,28 +13,27 @@ jobs:
       with:
         host: ${{ secrets.HOST }}
         username: root
-        password: ${{ secrets.PASSWORD }} 
+        password: ${{ secrets.PASSWORD }}
         port: 22
+        timeout: 120s
+        command_timeout: 30m
         script: |
-          # 1. Crear carpeta si no existe
-          mkdir -p /root/tigo-bot
-          cd /root/tigo-bot
+          mkdir -p /root/NicoBot
+          cd /root/NicoBot
           
-          # 2. Inicializar git si es la primera vez
           if [ ! -d ".git" ]; then
             git init
             git remote add origin https://github.com/${{ github.repository }}.git
           fi
           
-          # 3. Bajar cambios (Forzando para evitar conflictos)
           git fetch --all
           git reset --hard origin/main
           
-          # 4. Crear .env en el servidor
           echo "GROQ_API_KEY=${{ secrets.GROQ_API_KEY }}" > .env
+          echo "MONGO_URI=${{ secrets.MONGO_URI }}" >> .env
+          echo "NODE_SERVICE_URL=http://motor:3000/send-message" >> .env
+          echo "PYTHON_URL=http://cerebro:8000/webhook" >> .env
           
-          # 5. Construir y levantar DOCKER (Esto corre en la VPS, no en su PC)
           docker compose up -d --build --remove-orphans
           
-          # 6. Limpiar basura
           docker image prune -f
