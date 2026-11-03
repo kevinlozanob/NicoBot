@@ -2,6 +2,8 @@ import os
 from dotenv import load_dotenv
 load_dotenv()
 
+from contextlib import asynccontextmanager
+
 import requests
 from fastapi import FastAPI, Request
 import uvicorn
@@ -9,9 +11,14 @@ from groq import Groq
 
 import database
 
-database.init_db()
 
-app = FastAPI(title="NicoBot Core")
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    database.init_db()
+    yield
+
+
+app = FastAPI(title="NicoBot Core", lifespan=lifespan)
 
 NODE_SERVICE_URL = os.getenv("NODE_SERVICE_URL", "http://127.0.0.1:3000/send-message")
 GROQ_API_KEY = os.getenv("GROQ_API_KEY")
@@ -85,23 +92,31 @@ def enviar_respuesta_whatsapp(jid: str, texto: str):
     except requests.exceptions.RequestException as e:
         print(f"Error enviando a Node: {e}")
 
+def extraer_texto(data: dict):
+    """Devuelve (remote_jid, texto) de un mensaje de Baileys, o (jid, None) si se ignora."""
+    key = data.get("key") or {}
+    remote_jid = key.get("remoteJid", "")
+
+    if "status@broadcast" in remote_jid:
+        return remote_jid, None
+
+    message_content = data.get("message") or {}
+    texto_usuario = (
+        message_content.get("conversation") or
+        (message_content.get("extendedTextMessage") or {}).get("text")
+    )
+    return remote_jid, texto_usuario
+
+@app.get("/health")
+def health():
+    return {"status": "ok"}
+
 @app.post("/webhook")
 async def receive_webhook(request: Request):
     """Endpoint que recibe mensajes de WhatsApp."""
     try:
         data = await request.json()
-        
-        key = data.get("key", {})
-        remote_jid = key.get("remoteJid", "")
-        
-        if "status@broadcast" in remote_jid:
-            return {"status": "ignored"}
-        
-        message_content = data.get("message", {})
-        texto_usuario = (
-            message_content.get("conversation") or 
-            message_content.get("extendedTextMessage", {}).get("text")
-        )
+        remote_jid, texto_usuario = extraer_texto(data)
 
         if not texto_usuario:
             return {"status": "ignored"}

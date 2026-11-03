@@ -3,37 +3,63 @@ name: Deploy VPS
 on:
   push:
     branches: [ "main" ]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: deploy-vps
+  cancel-in-progress: false
 
 jobs:
+  tests:
+    uses: ./.github/workflows/tests.yml
+
   deploy:
+    needs: tests
     runs-on: ubuntu-latest
     steps:
     - name: Deploy via SSH
-      uses: appleboy/ssh-action@v1.0.0
+      uses: appleboy/ssh-action@v1.2.2
+      env:
+        GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
+        MONGO_URI: ${{ secrets.MONGO_URI }}
+        REPO_URL: https://github.com/${{ github.repository }}.git
+        DEPLOY_PATH: ${{ secrets.DEPLOY_PATH }}
       with:
         host: ${{ secrets.HOST }}
-        username: root
-        password: ${{ secrets.PASSWORD }}
-        port: 22
+        username: ${{ secrets.SSH_USER }}
+        key: ${{ secrets.SSH_PRIVATE_KEY }}
+        passphrase: ${{ secrets.SSH_PASSPHRASE }}
+        fingerprint: ${{ secrets.SSH_FINGERPRINT }}
+        port: ${{ secrets.SSH_PORT || 22 }}
         timeout: 120s
         command_timeout: 30m
+        envs: GROQ_API_KEY,MONGO_URI,REPO_URL,DEPLOY_PATH
         script: |
-          mkdir -p /root/NicoBot
-          cd /root/NicoBot
-          
+          set -e
+
+          APP_DIR="${DEPLOY_PATH:-$HOME/NicoBot}"
+          mkdir -p "$APP_DIR"
+          cd "$APP_DIR"
+
           if [ ! -d ".git" ]; then
             git init
-            git remote add origin https://github.com/${{ github.repository }}.git
+            git remote add origin "$REPO_URL"
           fi
-          
-          git fetch --all
+
+          git fetch origin main
           git reset --hard origin/main
-          
-          echo "GROQ_API_KEY=${{ secrets.GROQ_API_KEY }}" > .env
-          echo "MONGO_URI=${{ secrets.MONGO_URI }}" >> .env
-          echo "NODE_SERVICE_URL=http://motor:3000/send-message" >> .env
-          echo "PYTHON_URL=http://cerebro:8000/webhook" >> .env
-          
+
+          umask 077
+          {
+            printf 'GROQ_API_KEY=%s\n' "$GROQ_API_KEY"
+            printf 'MONGO_URI=%s\n' "$MONGO_URI"
+            printf 'NODE_SERVICE_URL=%s\n' "http://motor:3000/send-message"
+            printf 'PYTHON_URL=%s\n' "http://cerebro:8000/webhook"
+          } > .env
+
           docker compose up -d --build --remove-orphans
-          
+
           docker image prune -f
