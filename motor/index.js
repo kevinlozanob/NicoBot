@@ -13,6 +13,13 @@ const PYTHON_BACKEND_URL =
   process.env.PYTHON_URL || "http://127.0.0.1:8000/webhook";
 
 let sock;
+let conectado = false;
+let intentos = 0;
+
+// Espera creciente entre reconexiones: 1s, 2s, 4s... hasta 60s.
+function retrasoReconexion(intento) {
+  return Math.min(1000 * 2 ** intento, 60000);
+}
 
 async function iniciarConexion() {
   const { state, saveCreds } = await useMultiFileAuthState("auth_session");
@@ -36,15 +43,20 @@ async function iniciarConexion() {
     }
 
     if (connection === "close") {
+      conectado = false;
       const shouldReconnect =
         lastDisconnect?.error?.output?.statusCode !== DisconnectReason.loggedOut;
 
       console.log(`Conexión cerrada. Razón: ${lastDisconnect?.error}, Reconectando: ${shouldReconnect}`);
 
       if (shouldReconnect) {
-        iniciarConexion();
+        const espera = retrasoReconexion(intentos++);
+        console.log(`Reintentando en ${espera / 1000}s...`);
+        setTimeout(iniciarConexion, espera);
       }
     } else if (connection === "open") {
+      conectado = true;
+      intentos = 0;
       console.log("\n!!! CONEXIÓN EXITOSA !!! Bot listo para usar.\n");
     }
   });
@@ -65,7 +77,8 @@ async function iniciarConexion() {
   });
 }
 
-const app = createApp(() => sock);
+// Solo se expone el socket cuando WhatsApp está realmente conectado.
+const app = createApp(() => (conectado ? sock : undefined));
 
 app.listen(PORT, () => {
   console.log(`Servicio Motor corriendo en puerto ${PORT}`);
