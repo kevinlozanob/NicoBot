@@ -5,10 +5,12 @@
 
 motor/auth_session/
 motor/baileys_store.json
+sesion_data/
 
 cerebro/__pycache__/
 cerebro/venv/
 cerebro/.venv/
+.pytest_cache/
 *.py[cod]
 *.db
 *.sqlite3
