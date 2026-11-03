@@ -2,6 +2,7 @@ const {
   default: makeWASocket,
   useMultiFileAuthState,
   DisconnectReason,
+  fetchLatestWaWebVersion,
 } = require("@whiskeysockets/baileys");
 const qrcode = require("qrcode-terminal");
 const axios = require("axios");
@@ -21,12 +22,31 @@ function retrasoReconexion(intento) {
   return Math.min(1000 * 2 ** intento, 60000);
 }
 
+// WhatsApp rechaza (código 405) las versiones viejas de WhatsApp Web, y la
+// que trae Baileys por defecto se desactualiza. Se consulta la vigente y, si
+// falla, se usa la de Baileys.
+async function obtenerVersionWA() {
+  try {
+    const { version, isLatest } = await fetchLatestWaWebVersion();
+    if (isLatest) {
+      console.log(`Usando WhatsApp Web ${version.join(".")}`);
+      return version;
+    }
+  } catch (error) {
+    console.error(`No se pudo consultar la versión de WhatsApp Web: ${error.message}`);
+  }
+  console.log("Usando la versión de WhatsApp Web que trae Baileys.");
+  return undefined;
+}
+
 async function iniciarConexion() {
   const { state, saveCreds } = await useMultiFileAuthState("auth_session");
+  const version = await obtenerVersionWA();
 
   console.log("Iniciando socket...");
 
   sock = makeWASocket({
+    ...(version && { version }),
     auth: state,
     printQRInTerminal: false,
     syncFullHistory: false,
